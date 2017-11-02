@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+  },
+  "variables": {
+  },
+  "resources": [
+    {
+      "type": "microsoft.insights/components",
+      "kind": "web",
+      "name": "appingights",
+      "apiVersion": "2014-04-01",
+      "location": "East US",
+      "tags": {
+        "ENVIRONMENT": "PRODUCTION",
+        "RESOURCE_GROUP": "APPINSIGHTS",
+        "RESOURCE_TYPE": "ApplicationInsights"
+      },
+      "properties": {
+        "ApplicationId": "appingights"
+      },
+      "dependsOn": []
+    },
+    {
+      "type": "microsoft.insights/components",
+      "kind": "web",
+      "name": "appingights-dev",
+      "apiVersion": "2014-04-01",
+      "location": "East US",
+      "tags": {
+        "ENVIRONMENT": "DEVELOPMENT",
+        "RESOURCE_GROUP": "APPINSIGHTS",
+        "RESOURCE_TYPE": "ApplicationInsights"
+      },
+      "properties": {
+        "ApplicationId": "appingights-dev"
+      },
+      "dependsOn": []
+    }
+  ],
+  "outputs": {
+    "InstrumentationKey": {
+      "type": "array",
+      "value": [
+        { "gapingights": "[reference(concat('Microsoft.insights/components/appingights')).InstrumentationKey]" },
+        { "gapingights-dev": "[reference(concat('Microsoft.insights/components/appingights-dev')).InstrumentationKey]" }
+      ]
+    }
+  }
+}

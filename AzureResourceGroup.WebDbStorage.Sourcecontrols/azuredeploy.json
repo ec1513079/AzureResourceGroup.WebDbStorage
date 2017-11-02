@@ -1,0 +1,109 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+
+  ///////////////////////////////////////////////
+  // PARAMETERS
+  ///////////////////////////////////////////////
+  "parameters": {
+
+    /* DEPLOYMENT PARAM */
+    "deploymentId": {
+      "type": "string",
+      "defaultValue": "[uniqueString(subscription().id, resourceGroup().id)]",
+      "metadata": {
+        "description": "Unique string for grouping system environment."
+      }
+    },
+    "prefix": {
+      "type": "string",
+      "defaultValue": "wds",
+      "metadata": {
+        "description": "Enviroment prefix name."
+      }
+    },
+
+    /* REPOSITORY PARAM */
+    "repositoryUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Url of git repository for webapps deployment"
+      }
+    },
+    "repositoryBranchName": {
+      "type": "string",
+      "defaultValue": "master",
+      "metadata": {
+        "description": "Branch name of git repository for webapps deployment"
+      }
+    }
+
+  },
+
+  ///////////////////////////////////////////////
+  // VARIABLES
+  ///////////////////////////////////////////////
+  "variables": {
+    "appServicePlanName": "[concat(parameters('prefix'), '-app-', parameters('deploymentId'))]",
+    "webSiteName": "[concat(parameters('prefix'), '-web-', parameters('deploymentId'))]"
+  },
+
+  ///////////////////////////////////////////////
+  // RESOURCES
+  ///////////////////////////////////////////////
+  "resources": [
+
+    /* WebApps */
+    {
+      "name": "[variables('webSiteName')]",
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2016-08-01",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "name": "[variables('webSiteName')]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+      },
+      "resources": [
+
+        /* Source Controls */
+        {
+          "name": "web",
+          "type": "sourcecontrols",
+          "apiVersion": "2016-08-01",
+          "properties": {
+            "RepoUrl": "[parameters('repositoryUrl')]",
+            "branch": "[parameters('repositoryBranchName')]",
+            "IsManualIntegration": true
+          },
+          "dependsOn": [
+            "[variables('webSiteName')]"
+          ]
+        }
+
+      ]
+    }
+  ],
+
+  ///////////////////////////////////////////////
+  // RESOURCES
+  ///////////////////////////////////////////////
+  "outputs": {
+    "DeploymentId": {
+      "type": "string",
+      "value": "[parameters('deploymentId')]"
+    },
+    "WebSiteName": {
+      "type": "string",
+      "value": "[variables('webSiteName')]"
+    },
+    "WebSiteDomain": {
+      "type": "string",
+      "value": "[reference(concat('Microsoft.Web/sites/', variables('webSiteName'))).hostnames[0]]"
+    },
+    "WebSiteUrl": {
+      "type": "string",
+      "value": "[concat('https://', reference(concat('Microsoft.Web/sites/', variables('webSiteName'))).hostnames[0])]"
+    }
+  }
+
+}

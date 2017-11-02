@@ -93,24 +93,3 @@ if ($ErrorMessages) {
 Write-Output '', 'Template Deploy Result'
 Write-Output $Result.OutputsString
 
-
-####################################################################################################
-## Get Azure Storage Account and Create Container
-####################################################################################################
-$WebSiteName = $Result.Outputs.webSiteName.Value
-$StorageAccountName = $Result.Outputs.storageAccountName.Value
-$StorageAccountKey = @(Get-AzureRmStorageAccountKey -ResourceGroupName $ResourceGroupName -Name $StorageAccountName)[0] `
-                             | Where-Object {$_.KeyName -match 'key1'} | Select-Object -ExpandProperty Value
-
-Write-Output '', 'GET Azure Storage Account'
-Write-Output "StorageAccountName : $($StorageAccountName)"
-Write-Output "StorageAccountKey  : $($StorageAccountKey)"
-
-#$StorageAccountContext = New-AzureStorageContext -StorageAccountName $StorageAccountName -StorageAccountKey $StorageAccountKey
-#$CreateStorageContainer = @('picture')
-#foreach($name in $CreateStorageContainer) {
-#    if ((Get-AzureStorageContainer -Context $StorageAccountContext | Where-Object { $_.Name -eq $name }) -eq $null){
-#        Write-Output '', "CREATE Azure Storage Container : $($name)"
-#        New-AzureStorageContainer -Context $StorageAccountContext -Name $name -Permission Off
-#    }
-#}

@@ -11,7 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>6116a406-50d2-44fe-99c3-0162b4d1ba10</ProjectGuid>
+    <ProjectGuid>d069653f-f368-40bc-8ea4-ed7d540daf97</ProjectGuid>
   </PropertyGroup>
   <PropertyGroup>
     <TargetFrameworkIdentifier>Deployment</TargetFrameworkIdentifier>
@@ -33,4 +33,9 @@
     <Content Include="Deploy-AzureResourceGroup.ps1" />
   </ItemGroup>
   <Target Name="GetReferenceAssemblyPaths" />
+  <ProjectExtensions>
+    <VisualStudio>
+      <UserProperties params_4azuredeploy_1parameters_1minimum_1json__JSONSchema="" />
+    </VisualStudio>
+  </ProjectExtensions>
 </Project>

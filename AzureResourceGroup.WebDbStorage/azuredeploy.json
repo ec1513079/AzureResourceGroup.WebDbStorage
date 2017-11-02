@@ -1,8 +1,476 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
-  "parameters": {},
-  "variables": {},
-  "resources": [],
-  "outputs": {}
+
+  ///////////////////////////////////////////////
+  // PARAMETERS
+  ///////////////////////////////////////////////
+  "parameters": {
+
+    /* DEPLOYMENT PARAM */
+    "deploymentId": {
+      "type": "string",
+      "defaultValue": "[uniqueString(subscription().id, resourceGroup().id)]",
+      "metadata": {
+        "description": "Unique string for grouping system environment."
+      }
+    },
+    "environmentTagName": {
+      "type": "string",
+      "defaultValue": "NONE",
+      "metadata": {
+        "description": "Tag value for 'ENVIRONMENT'."
+      }
+    },
+    "prefix": {
+      "type": "string",
+      "defaultValue": "wds",
+      "metadata": {
+        "description": "Enviroment prefix name."
+      }
+    },
+
+    /* WEB APPS PARAM */
+    "skuName": {
+      "type": "string",
+      "defaultValue": "F1",
+      "allowedValues": [
+        "F1",
+        "D1",
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2"
+      ],
+      "metadata": {
+        "description": "Describes plan's pricing tier and instance size. Check details at https://azure.microsoft.com/en-us/pricing/details/app-service/"
+      }
+    },
+    "skuCapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1,
+      "maxValue": 5,
+      "metadata": {
+        "description": "Describes plan's instance count"
+      }
+    },
+    "appinsightsInstrumentationKey": {
+      "type": "string",
+      "defaultValue": "__APPLICATION_INSIGHTS_INSTRUMENTATION_KEY__",
+      "metadata": {
+        "description": "Application Insights Instrumentation Key for logging."
+      }
+    },
+    "enableMetricAlert": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable alert metric setting in WebApps"
+      }
+    },
+
+    /* DATABASE PARAM */
+    "dtuEdition": {
+      "type": "string",
+      "defaultValue": "Basic",
+      "allowedValues": [
+        "Basic",
+        "Standard",
+        "Premium"
+      ],
+      "metadata": {
+        "description": "The type of database to create."
+      }
+    },
+    "dtuPerformanceLevel": {
+      "type": "string",
+      "defaultValue": "Basic",
+      "allowedValues": [
+        "Basic",
+        "S0",
+        "S1",
+        "S2",
+        "P1"
+      ],
+      "metadata": {
+        "description": "Describes the performance level for Edition"
+      }
+    },
+    "databaseName": {
+      "type": "string",
+      "defaultValue": "WdsDB",
+      "metadata": {
+        "description": "DatabaseName"
+      }
+    },
+    "sqlAdministratorLogin": {
+      "type": "string",
+      "defaultValue": "sqladmin",
+      "metadata": {
+        "description": "The admin user of the SQL Server"
+      }
+    },
+    "sqlAdministratorLoginPassword": {
+      "type": "securestring",
+      "defaultValue": "sqlDB123",
+      "metadata": {
+        "description": "The password of the admin user of the SQL Server"
+      }
+    },
+
+    /* REPOSITORY PARAM */
+    "repositoryBuildArgs": {
+      "type": "string",
+      "defaultValue": "-p:Configuration=Release",
+      "metadata": {
+        "description": "The msbuild config."
+      }
+    }
+
+  },
+
+  ///////////////////////////////////////////////
+  // VARIABLES
+  ///////////////////////////////////////////////
+  "variables": {
+    "strageAccountName": "[concat(parameters('prefix'), 'blob', parameters('deploymentId'))]",
+    "sqlserverName": "[concat(parameters('prefix'), '-sql-', parameters('deploymentId'))]",
+    "appServicePlanName": "[concat(parameters('prefix'), '-app-', parameters('deploymentId'))]",
+    "webSiteName": "[concat(parameters('prefix'), '-web-', parameters('deploymentId'))]"
+  },
+
+  ///////////////////////////////////////////////
+  // RESOURCES
+  ///////////////////////////////////////////////
+  "resources": [
+
+    /* StorageAccounts */
+    {
+      "name": "[variables('strageAccountName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2016-05-01",
+      "sku": {
+        "name": "Standard_GRS"
+      },
+      "kind": "Storage",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "ENVIRONMENT": "[parameters('environmentTagName')]",
+        "RESOURCE_GROUP": "[parameters('deploymentId')]",
+        "RESOURCE_TYPE": "StorageAccount"
+      },
+      "properties": {},
+      "dependsOn": []
+    },
+
+    /* SQL Database */
+    {
+
+      /* SQL Server */
+      "name": "[variables('sqlserverName')]",
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2014-04-01",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "ENVIRONMENT": "[parameters('environmentTagName')]",
+        "RESOURCE_GROUP": "[parameters('deploymentId')]",
+        "RESOURCE_TYPE": "SqlServer"
+      },
+      "properties": {
+        "version": "12.0",
+        "administratorLogin": "[parameters('sqlAdministratorLogin')]",
+        "administratorLoginPassword": "[parameters('sqlAdministratorLoginPassword')]"
+      },
+      "dependsOn": [],
+      "resources": [
+
+        /* SQL Database */
+        {
+          "name": "[parameters('databaseName')]",
+          "type": "databases",
+          "apiVersion": "2014-04-01",
+          "location": "[resourceGroup().location]",
+          "tags": {
+            "ENVIRONMENT": "[parameters('environmentTagName')]",
+            "RESOURCE_GROUP": "[parameters('deploymentId')]",
+            "RESOURCE_TYPE": "SqlDatabase"
+          },
+          "properties": {
+            "collation": "SQL_Latin1_General_CP1_CI_AS",
+            "edition": "[parameters('dtuEdition')]",
+            "maxSizeBytes": "2147483648",
+            "requestedServiceObjectiveName": "[parameters('dtuPerformanceLevel')]"
+          },
+          "dependsOn": [
+            "[variables('sqlserverName')]"
+          ]
+        },
+
+        /* SQL Server Firewall Rules */
+        {
+          "name": "AllowAllWindowsAzureIps",
+          "type": "firewallrules",
+          "apiVersion": "2014-04-01",
+          "location": "[resourceGroup().location]",
+          "properties": {
+            "endIpAddress": "0.0.0.0",
+            "startIpAddress": "0.0.0.0"
+          },
+          "dependsOn": [
+            "[variables('sqlserverName')]"
+          ]
+        }
+      ]
+    },
+
+    /* AppService Plan */
+    {
+      "name": "[variables('appServicePlanName')]",
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2016-09-01",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "ENVIRONMENT": "[parameters('environmentTagName')]",
+        "RESOURCE_GROUP": "[parameters('deploymentId')]",
+        "RESOURCE_TYPE": "HostingPlan"
+      },
+      "properties": {
+        "name": "[variables('appServicePlanName')]"
+      },
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "capacity": "[parameters('skuCapacity')]"
+      },
+      "dependsOn": [
+        "[parameters('databaseName')]"
+      ]
+    },
+
+    /* WebApps */
+    {
+      "name": "[variables('webSiteName')]",
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2016-08-01",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "[concat('hidden-related:', resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName')))]": "empty",
+        "ENVIRONMENT": "[parameters('environmentTagName')]",
+        "RESOURCE_GROUP": "[parameters('deploymentId')]",
+        "RESOURCE_TYPE": "Website"
+      },
+      "properties": {
+        "name": "[variables('webSiteName')]",
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]"
+      },
+      "dependsOn": [
+        "[variables('appServicePlanName')]"
+      ],
+      "resources": [
+
+        /* AppSettings */
+        {
+          "name": "appsettings",
+          "type": "config",
+          "apiVersion": "2016-08-01",
+          "properties": {
+            "PROJECT": "Gappie.Web\\Gappie.Web.csproj", // Kude build project
+            "SCM_BUILD_ARGS": "[parameters('repositoryBuildArgs')]",
+            "APPINSIGHTS_INSTRUMENTATIONKEY": "[parameters('appinsightsInstrumentationKey')]",
+            "APPINSIGHTS_ENVIROMENT_TAG": "[parameters('environmentTagName')]",
+            "APPINSIGHTS_DEPLOYMENT_ID": "[parameters('deploymentId')]",
+            "StorageConnectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('strageAccountName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('strageAccountName')), providers('Microsoft.Storage', 'storageAccounts').apiVersions[0]).keys[0].value)]"
+          },
+          "dependsOn": [
+            "[variables('webSiteName')]"
+          ]
+        },
+
+        /* ConnectionStrings */
+        {
+          "name": "connectionstrings",
+          "type": "config",
+          "apiVersion": "2016-08-01",
+          "properties": {
+            "DefaultConnection": {
+              "value": "[concat('Data Source=tcp:', reference(concat('Microsoft.Sql/servers/', variables('sqlserverName'))).fullyQualifiedDomainName, ',1433;Initial Catalog=', parameters('databaseName'), ';User Id=', parameters('sqlAdministratorLogin'), '@', reference(concat('Microsoft.Sql/servers/', variables('sqlserverName'))).fullyQualifiedDomainName, ';Password=', parameters('sqlAdministratorLoginPassword'), ';')]",
+              "type": "SQLAzure"
+            }
+          },
+          "dependsOn": [
+            "[variables('webSiteName')]"
+          ]
+        },
+
+        /* Slot config */
+        {
+          "name": "slotconfignames",
+          "type": "config",
+          "apiVersion": "2016-08-01",
+          "properties": {
+            "appSettingNames": [
+              "PROJECT",
+              "SCM_BUILD_ARGS",
+              "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "APPINSIGHTS_ENVIROMENT_TAG",
+              "APPINSIGHTS_DEPLOYMENT_ID"
+            ],
+            "connectionStringNames": []
+          },
+          "dependsOn": [
+            "[variables('webSiteName')]",
+            "appsettings",
+            "connectionstrings"
+          ]
+        }
+      ]
+
+    },
+
+    /* AlertRules (ServerErrors) */
+    {
+      "name": "[concat('ServerErrors-', variables('webSiteName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "apiVersion": "2014-04-01",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('webSiteName'))]": "Resource",
+        "ENVIRONMENT": "[parameters('environmentTagName')]",
+        "RESOURCE_GROUP": "[parameters('deploymentId')]",
+        "RESOURCE_TYPE": "Website-ServerErrorsAlertRule"
+      },
+      "properties": {
+        "name": "[concat('ServerErrors-', variables('webSiteName'))]",
+        "description": "[concat(variables('webSiteName'), ' has some server errors, status code 5xx.')]",
+        "isEnabled": "[parameters('enableMetricAlert')]",
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('webSiteName'))]",
+            "metricName": "Http5xx"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0.0,
+          "windowSize": "PT5M" // Take action if changed state for 15 minutes
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/', variables('webSiteName'))]"
+      ]
+    },
+
+    /* AlertRules (ForbiddenRequests) */
+    {
+      "name": "[concat('ForbiddenRequests-', variables('webSiteName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "apiVersion": "2014-04-01",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('webSiteName'))]": "Resource",
+        "ENVIRONMENT": "[parameters('environmentTagName')]",
+        "RESOURCE_GROUP": "[parameters('deploymentId')]",
+        "RESOURCE_TYPE": "Website-ForbiddenRequestsAlertRule"
+      },
+      "properties": {
+        "name": "[concat('ForbiddenRequests-', variables('webSiteName'))]",
+        "description": "[concat(variables('webSiteName'), ' has some requests that are forbidden, status code 403.')]",
+        "isEnabled": "[parameters('enableMetricAlert')]",
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/sites/', variables('webSiteName'))]",
+            "metricName": "Http403"
+          },
+          "operator": "GreaterThan",
+          "threshold": 0,
+          "windowSize": "PT5M" // Take action if changed state for 15 minutes
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/', variables('webSiteName'))]"
+      ]
+    },
+
+    /* AlertRules (CPUHigh) */
+    {
+      "name": "[concat('CPUHigh-', variables('appServicePlanName'))]",
+      "type": "Microsoft.Insights/alertrules",
+      "apiVersion": "2014-04-01",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "[concat('hidden-link:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('appServicePlanName'))]": "Resource",
+        "ENVIRONMENT": "[parameters('environmentTagName')]",
+        "RESOURCE_GROUP": "[parameters('deploymentId')]",
+        "RESOURCE_TYPE": "Website-CPUHighAlertRule"
+      },
+      "properties": {
+        "name": "[concat('CPUHigh-', variables('appServicePlanName'))]",
+        "description": "[concat('The average CPU is high across all the instances of ', variables('appServicePlanName'))]",
+        "isEnabled": "[parameters('enableMetricAlert')]",
+        "condition": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.ThresholdRuleCondition",
+          "dataSource": {
+            "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleMetricDataSource",
+            "resourceUri": "[concat(resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('appServicePlanName'))]",
+            "metricName": "CpuPercentage"
+          },
+          "operator": "GreaterThan",
+          "threshold": 90,
+          "windowSize": "PT15M" // Take action if changed state for 15 minutes
+        },
+        "action": {
+          "odata.type": "Microsoft.Azure.Management.Insights.Models.RuleEmailAction",
+          "sendToServiceOwners": true,
+          "customEmails": []
+        }
+      },
+      "dependsOn": [
+        "[variables('appServicePlanName')]"
+      ]
+    }
+  ],
+
+  ///////////////////////////////////////////////
+  // RESOURCES
+  ///////////////////////////////////////////////
+  "outputs": {
+    "DeploymentId": {
+      "type": "string",
+      "value": "[parameters('deploymentId')]"
+    },
+    "WebSiteName": {
+      "type": "string",
+      "value": "[variables('webSiteName')]"
+    },
+    "WebSiteDomain": {
+      "type": "string",
+      "value": "[reference(concat('Microsoft.Web/sites/', variables('webSiteName'))).hostnames[0]]"
+    },
+    "WebSiteUrl": {
+      "type": "string",
+      "value": "[concat('https://', reference(concat('Microsoft.Web/sites/', variables('webSiteName'))).hostnames[0])]"
+    },
+    "SqlServerFqdn": {
+      "type": "string",
+      "value": "[reference(concat('Microsoft.Sql/servers/', variables('sqlserverName'))).fullyQualifiedDomainName]"
+    },
+    "StorageAccountName": {
+      "type": "string",
+      "value": "[variables('strageAccountName')]"
+    }
+  }
+
 }

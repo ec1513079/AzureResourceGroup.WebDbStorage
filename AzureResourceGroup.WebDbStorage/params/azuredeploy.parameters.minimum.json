@@ -1,0 +1,30 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentTagName": {
+      "value": "MINIMUM"
+    },
+    "prefix": {
+      "value": "mhlw"
+    },
+    "skuName": {
+      "value": "F1"
+    },
+    "skuCapacity": {
+      "value": 1
+    },
+    "dtuEdition": {
+      "value": "Basic"
+    },
+    "dtuPerformanceLevel": {
+      "value": "Basic"
+    },
+    "databaseName": {
+      "value": "MhlwCCDB"
+    },
+    "repositoryBuildArgs": {
+      "value": "-p:Configuration=Debug"
+    }
+  }
+}
